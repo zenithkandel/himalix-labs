@@ -73,9 +73,10 @@ himalix-labs/
 The agent must implement the system in this order to ensure a stable build:
 
 ### Phase 1: Database Setup
-1. **Initialize Database:**
-   - Execute `database_schema.md` schemas to create the unified tables (`users`, `landing_content`, `products`, `orders`, etc.).
-   - Seed tables with `unified_seed.sql` parameters to establish baseline system configurations and test credentials.
+1. **Initialize Databases:**
+   - Create separate SQL files under `database/`: `portfolio.sql`, `store.sql`, `3d.sql`, `web.sql`, and `project.sql`.
+   - Execute the schema creation files to create five segregated databases: `himalix_portfolio`, `himalix_store`, `himalix_3d`, `himalix_web`, and `himalix_project`.
+   - Seed `himalix_portfolio` and `himalix_store` databases with initial configuration settings, services, founders, testimonials, and default administrative profiles.
 
 ### Phase 2: Shared Backend Core
 1. **Configure Environment:**
