@@ -91,4 +91,4 @@ CREATE TABLE user_activity_logs (
 -- SEED DEFAULT SUPER ADMIN
 -- ============================================================
 INSERT INTO users (email, password_hash, role, referral_code, wallet_balance) VALUES
-('admin@himalix.com', '$2a$10$nF4N.20dM8/bLz60kQ8wUeD7b6/2R3/WJgGvK5KCePz5aG5DqK2yK', 'admin', 'HMX-REF-ADMIN1', 0.00);
+('admin@himalix.com', '$2a$10$5dKWNo1q8OHwznDnbgq98O8OzCptkKcnAcRuNk0ANvlA2PLL/cDuq', 'admin', 'HMX-REF-ADMIN1', 0.00);

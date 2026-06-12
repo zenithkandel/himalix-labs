@@ -6,6 +6,7 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust proxy header (e.g., Webpack dev proxy)
 const PORT = process.env.PORT || 5000;
 
 // Security Middlewares
