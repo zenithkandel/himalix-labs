@@ -46,10 +46,11 @@ CREATE TABLE cart_items (
 -- ============================================================
 -- 3. ORDERS
 -- ============================================================
--- Note: Cross-database foreign key referencing himalix_auth.users(id)
+-- Note: Cross-database foreign key referencing himalix_auth.users(id) & user_sessions(id)
 CREATE TABLE orders (
     id               INT           NOT NULL AUTO_INCREMENT,
     user_id          INT           DEFAULT NULL,
+    session_id       INT           DEFAULT NULL,
     total_amount     DECIMAL(10,2) NOT NULL,
     status           VARCHAR(50)   NOT NULL DEFAULT 'pending',
     tracking_code    VARCHAR(100)  NOT NULL,
@@ -58,7 +59,8 @@ CREATE TABLE orders (
     payment_status   VARCHAR(50)   NOT NULL DEFAULT 'unpaid',
     created_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES himalix_auth.users (id) ON DELETE SET NULL
+    CONSTRAINT fk_orders_user    FOREIGN KEY (user_id)    REFERENCES himalix_auth.users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_orders_session FOREIGN KEY (session_id) REFERENCES himalix_auth.user_sessions (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================

@@ -217,12 +217,12 @@ All incoming API requests are processed through these standard security layers:
      $$\text{Tax} = \text{subtotal} \times \text{sales\_tax\_rate}$$
   5. Computes total order cost:
      $$\text{Total} = \text{subtotal} + \text{Tax} + \text{Shipping Fee}$$
-  6. Checks wallet balance if `paymentMethod === 'store_credit'`.
+  6. Checks wallet balance if `paymentMethod === 'store_credit'`. The balance update must run atomically inside the database transaction: `UPDATE himalix_auth.users SET wallet_balance = wallet_balance - ? WHERE id = ? AND wallet_balance >= ?`. The server checks that exactly one row was updated; otherwise, it rolls back the transaction (preventing concurrent double-spending).
   7. Generates tracking code: `HMX-` + last 6 digits of current timestamp + random 4-character uppercase alphanumeric string.
   8. Calculates Delivery ETA: Finds the maximum processing delay `outsource_days` among all ordered items.
      $$\text{ETA Min Days} = \max(\text{outsource\_days}) + 1\text{ (transit day)}$$
      $$\text{ETA Max Days} = \max(\text{outsource\_days}) + 2\text{ (transit days)}$$
-  9. Performs database operations in a transaction (deducts stock for in-stock products, clears cart, deducts wallet balance if using store credit, logs transaction).
+  9. Performs database operations in a strict database transaction. It uses locking reads (`FOR UPDATE` query option) on products to serialize concurrent stock calculations, deducts stock for in-stock products, clears the user's cart, logs the ledger transaction, and commits on success. If any step fails, the entire transaction is rolled back.
   10. Dispatches operational receipt emails to client and subscribed admin receivers.
   11. If stock levels drop below the configured threshold, sends low stock emails.
 * **Response (201 Created):**

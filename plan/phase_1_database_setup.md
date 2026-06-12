@@ -1,11 +1,12 @@
 # 🗄️ Phase 1: Database Setup & Seeding Blueprint
 
-This phase outlines the configuration, creation, and seeding of the five segregated databases for the Himalix Labs platform:
-1. `himalix_portfolio` (CMS content, services, team, testimonials, message captures, and site settings)
-2. `himalix_store` (user accounts, products catalog, carts, orders, reviews, wallet logs, config settings, and notification receivers)
-3. `himalix_3d` (3D printing contracts data - skeleton)
-4. `himalix_web` (web agency details - skeleton)
-5. `himalix_project` (robotics projects - skeleton)
+This phase outlines the configuration, creation, and seeding of the six segregated databases for the Himalix Labs platform:
+1. `himalix_auth` (User registry, active login sessions, wallet transactions, follow rewards claims, and transparent activity logs)
+2. `himalix_portfolio` (CMS content, services, team, testimonials, contact message captures, and site settings)
+3. `himalix_store` (products catalog, cart items, orders, order items, reviews, store settings, and email notification receivers)
+4. `himalix_3d` (3D printing contracts data - skeleton)
+5. `himalix_web` (web agency details - skeleton)
+6. `himalix_project` (robotics projects - skeleton)
 
 ---
 
@@ -13,7 +14,95 @@ This phase outlines the configuration, creation, and seeding of the five segrega
 
 The SQL files must be created under the `/database` directory of the workspace.
 
-### A. General Portfolio CMS: [portfolio.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/portfolio.sql)
+### A. Authentication & Sessions Database: [auth.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/auth.sql)
+Creates the `himalix_auth` database, user registration metrics, session tokens logs, wallet ledger histories, bonus claims records, and user activity audit trails:
+
+```sql
+DROP DATABASE IF EXISTS himalix_auth;
+CREATE DATABASE himalix_auth
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE himalix_auth;
+
+-- 1. USER ACCOUNT REGISTRY
+CREATE TABLE users (
+    id              INT           NOT NULL AUTO_INCREMENT,
+    email           VARCHAR(255)  NOT NULL,
+    password_hash   VARCHAR(255)  DEFAULT NULL,
+    google_id       VARCHAR(255)  DEFAULT NULL,
+    avatar_url      VARCHAR(500)  DEFAULT NULL,
+    role            ENUM('user','admin') NOT NULL DEFAULT 'user',
+    wallet_balance  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    referral_code   VARCHAR(50)   DEFAULT NULL,
+    referred_by     INT           DEFAULT NULL,
+    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_users_email (email),
+    UNIQUE KEY uq_users_google_id (google_id),
+    UNIQUE KEY uq_users_referral_code (referral_code),
+    CONSTRAINT fk_users_referred_by FOREIGN KEY (referred_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. USER SESSIONS RECORD
+CREATE TABLE user_sessions (
+    id              INT           NOT NULL AUTO_INCREMENT,
+    user_id         INT           NOT NULL,
+    session_token   VARCHAR(255)  NOT NULL,
+    ip_address      VARCHAR(45)   DEFAULT NULL,
+    user_agent      VARCHAR(500)  DEFAULT NULL,
+    login_time      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    logout_time     TIMESTAMP     NULL DEFAULT NULL,
+    is_active       TINYINT(1)    NOT NULL DEFAULT 1,
+    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_session_token (session_token),
+    CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. WALLET LEDGER TRANSACTIONS
+CREATE TABLE wallet_transactions (
+    id           INT            NOT NULL AUTO_INCREMENT,
+    user_id      INT            NOT NULL,
+    session_id   INT            DEFAULT NULL,
+    amount       DECIMAL(10,2)  NOT NULL,
+    type         ENUM('deposit', 'purchase', 'refund', 'referral', 'social') NOT NULL,
+    reference_id VARCHAR(100)   DEFAULT NULL,
+    created_at   TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_wallet_transactions_user    FOREIGN KEY (user_id)    REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wallet_transactions_session FOREIGN KEY (session_id) REFERENCES user_sessions (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4. SOCIAL MEDIA INCENTIVE CLAIMS
+CREATE TABLE social_claims (
+    user_id    INT         NOT NULL,
+    platform   VARCHAR(50) NOT NULL,
+    claimed_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, platform),
+    CONSTRAINT fk_social_claims_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5. TRANSPARENT USER ACTIVITY LOGS
+CREATE TABLE user_activity_logs (
+    id              INT           NOT NULL AUTO_INCREMENT,
+    user_id         INT           DEFAULT NULL,
+    session_id      INT           DEFAULT NULL,
+    action_type     VARCHAR(50)   NOT NULL,
+    ip_address      VARCHAR(45)   DEFAULT NULL,
+    details         TEXT          DEFAULT NULL,
+    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_logs_user    FOREIGN KEY (user_id)    REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_logs_session FOREIGN KEY (session_id) REFERENCES user_sessions (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- SEEDS FOR ADMIN Account
+INSERT INTO users (email, password_hash, role, referral_code, wallet_balance) VALUES
+('admin@himalix.com', '$2a$10$nF4N.20dM8/bLz60kQ8wUeD7b6/2R3/WJgGvK5KCePz5aG5DqK2yK', 'admin', 'HMX-REF-ADMIN1', 0.00);
+```
+
+### B. General Portfolio CMS: [portfolio.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/portfolio.sql)
 Creates `himalix_portfolio` database, defining landing content, services, testimonials, team members, contact messaging structures, and seeds them.
 
 ```sql
@@ -122,8 +211,8 @@ INSERT INTO testimonials (client_name, client_title, company, content, rating, d
 ('Sita Thapa', 'Product Designer', 'TechPro Nepal', 'The STL printing service is stellar. The crisp surfaces and tolerances matched our designs exactly.', 5, 2, 1);
 ```
 
-### B. Store E-Commerce: [store.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/store.sql)
-Creates `himalix_store` database, defining catalog tables, carts, orders, reviews, transaction logs, and seeds settings and default admin user credentials.
+### C. Store E-Commerce: [store.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/store.sql)
+Creates `himalix_store` database, defining catalog tables, carts, orders, reviews, settings, and receivers. Cross-database foreign keys point to `himalix_auth`:
 
 ```sql
 DROP DATABASE IF EXISTS himalix_store;
@@ -133,26 +222,7 @@ CREATE DATABASE himalix_store
 
 USE himalix_store;
 
--- 1. USERS REGISTRY
-CREATE TABLE users (
-    id              INT           NOT NULL AUTO_INCREMENT,
-    email           VARCHAR(255)  NOT NULL,
-    password_hash   VARCHAR(255)  DEFAULT NULL,
-    google_id       VARCHAR(255)  DEFAULT NULL,
-    avatar_url      VARCHAR(500)  DEFAULT NULL,
-    role            ENUM('user','admin') NOT NULL DEFAULT 'user',
-    wallet_balance  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    referral_code   VARCHAR(50)   DEFAULT NULL,
-    referred_by     INT           DEFAULT NULL,
-    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY uq_users_email (email),
-    UNIQUE KEY uq_users_google_id (google_id),
-    UNIQUE KEY uq_users_referral_code (referral_code),
-    CONSTRAINT fk_users_referred_by FOREIGN KEY (referred_by) REFERENCES users (id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 2. PRODUCTS CATALOG
+-- 1. PRODUCTS CATALOG
 CREATE TABLE products (
     id               INT           NOT NULL AUTO_INCREMENT,
     name             VARCHAR(255)  NOT NULL,
@@ -172,7 +242,7 @@ CREATE TABLE products (
     UNIQUE KEY uq_products_sku (sku)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. SHOPPING CART ITEMS
+-- 2. SHOPPING CART ITEMS
 CREATE TABLE cart_items (
     id         INT       NOT NULL AUTO_INCREMENT,
     user_id    INT       NOT NULL,
@@ -181,14 +251,15 @@ CREATE TABLE cart_items (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_cart_items_user_product (user_id, product_id),
-    CONSTRAINT fk_cart_items_user    FOREIGN KEY (user_id)    REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_cart_items_user    FOREIGN KEY (user_id)    REFERENCES himalix_auth.users (id) ON DELETE CASCADE,
     CONSTRAINT fk_cart_items_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. ORDERS
+-- 3. ORDERS
 CREATE TABLE orders (
     id               INT           NOT NULL AUTO_INCREMENT,
     user_id          INT           DEFAULT NULL,
+    session_id       INT           DEFAULT NULL,
     total_amount     DECIMAL(10,2) NOT NULL,
     status           VARCHAR(50)   NOT NULL DEFAULT 'pending',
     tracking_code    VARCHAR(100)  NOT NULL,
@@ -197,10 +268,11 @@ CREATE TABLE orders (
     payment_status   VARCHAR(50)   NOT NULL DEFAULT 'unpaid',
     created_at       TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    CONSTRAINT fk_orders_user    FOREIGN KEY (user_id)    REFERENCES himalix_auth.users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_orders_session FOREIGN KEY (session_id) REFERENCES himalix_auth.user_sessions (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5. ORDER LINE ITEMS
+-- 4. ORDER LINE ITEMS
 CREATE TABLE order_items (
     id         INT            NOT NULL AUTO_INCREMENT,
     order_id   INT            NOT NULL,
@@ -212,7 +284,7 @@ CREATE TABLE order_items (
     CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 6. PRODUCT REVIEWS
+-- 5. PRODUCT REVIEWS
 CREATE TABLE reviews (
     id         INT       NOT NULL AUTO_INCREMENT,
     user_id    INT       NOT NULL,
@@ -221,39 +293,18 @@ CREATE TABLE reviews (
     comment    TEXT      DEFAULT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_reviews_user    FOREIGN KEY (user_id)    REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_reviews_user    FOREIGN KEY (user_id)    REFERENCES himalix_auth.users (id) ON DELETE CASCADE,
     CONSTRAINT fk_reviews_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 7. WALLET LEDGER TRANSACTIONS
-CREATE TABLE wallet_transactions (
-    id           INT            NOT NULL AUTO_INCREMENT,
-    user_id      INT            NOT NULL,
-    amount       DECIMAL(10,2)  NOT NULL,
-    type         ENUM('deposit', 'purchase', 'refund', 'referral', 'social') NOT NULL,
-    reference_id VARCHAR(100)   DEFAULT NULL,
-    created_at   TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    CONSTRAINT fk_wallet_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 8. SOCIAL MEDIA FOLLOW CLAIMS
-CREATE TABLE social_claims (
-    user_id    INT         NOT NULL,
-    platform   VARCHAR(50) NOT NULL,
-    claimed_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, platform),
-    CONSTRAINT fk_social_claims_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 9. CONFIGURATION SETTINGS
+-- 6. CONFIGURATION SETTINGS
 CREATE TABLE settings (
     key_name  VARCHAR(255) NOT NULL,
     key_value TEXT         DEFAULT NULL,
     PRIMARY KEY (key_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 10. NOTIFICATION RECEIVERS
+-- 7. NOTIFICATION RECEIVERS
 CREATE TABLE email_notification_receivers (
     id                        INT          NOT NULL AUTO_INCREMENT,
     email_address             VARCHAR(255) NOT NULL,
@@ -264,9 +315,7 @@ CREATE TABLE email_notification_receivers (
     UNIQUE KEY uq_receivers_email (email_address)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================
 -- SEEDS FOR STORE
--- ============================================================
 INSERT INTO settings (key_name, key_value) VALUES
 ('low_stock_threshold', '5'),
 ('sales_tax_rate', '13'),
@@ -282,16 +331,11 @@ INSERT INTO settings (key_name, key_value) VALUES
 ('delivery_min_charge', '50.00'),
 ('delivery_free_threshold', '2000.00');
 
--- Default Super Admin (bcrypt hash of admin123)
-INSERT INTO users (email, password_hash, role, referral_code, wallet_balance) VALUES
-('admin@himalix.com', '$2a$10$nF4N.20dM8/bLz60kQ8wUeD7b6/2R3/WJgGvK5KCePz5aG5DqK2yK', 'admin', 'HMX-REF-ADMIN1', 0.00);
-
--- Default notification alerts
 INSERT INTO email_notification_receivers (email_address, notify_on_order_placed, notify_on_low_stock, notify_on_user_registered) VALUES
 ('admin@himalix.com', 1, 1, 1);
 ```
 
-### C. 3D Printing Database: [3d.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/3d.sql)
+### D. 3D Printing Database: [3d.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/3d.sql)
 Initializes the database `himalix_3d`.
 ```sql
 DROP DATABASE IF EXISTS himalix_3d;
@@ -300,7 +344,7 @@ CREATE DATABASE himalix_3d
   COLLATE utf8mb4_unicode_ci;
 ```
 
-### D. Web Agency Database: [web.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/web.sql)
+### E. Web Agency Database: [web.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/web.sql)
 Initializes the database `himalix_web`.
 ```sql
 DROP DATABASE IF EXISTS himalix_web;
@@ -309,7 +353,7 @@ CREATE DATABASE himalix_web
   COLLATE utf8mb4_unicode_ci;
 ```
 
-### E. Robotics Projects Database: [project.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/project.sql)
+### F. Robotics Projects Database: [project.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/project.sql)
 Initializes the database `himalix_project`.
 ```sql
 DROP DATABASE IF EXISTS himalix_project;
@@ -325,6 +369,7 @@ CREATE DATABASE himalix_project
 ### Automated Database Provisioning Check
 We will build the databases using XAMPP's command line interface:
 ```bash
+c:\xampp\mysql\bin\mysql.exe -u root -e "source c:/xampp/htdocs/codes/himalix-labs/database/auth.sql;"
 c:\xampp\mysql\bin\mysql.exe -u root -e "source c:/xampp/htdocs/codes/himalix-labs/database/portfolio.sql;"
 c:\xampp\mysql\bin\mysql.exe -u root -e "source c:/xampp/htdocs/codes/himalix-labs/database/store.sql;"
 c:\xampp\mysql\bin\mysql.exe -u root -e "source c:/xampp/htdocs/codes/himalix-labs/database/3d.sql;"
@@ -333,7 +378,7 @@ c:\xampp\mysql\bin\mysql.exe -u root -e "source c:/xampp/htdocs/codes/himalix-la
 ```
 
 ### Verification Verification Steps
-- List databases to ensure all 5 are present:
+- List databases to ensure all 6 are present:
   `mysql -u root -e "SHOW DATABASES;"`
-- Inspect tables inside `himalix_portfolio` and `himalix_store` databases.
-- Confirm seed administrative account and configurations are present.
+- Inspect tables inside `himalix_auth`, `himalix_portfolio`, and `himalix_store` databases.
+- Confirm seed administrative account, configurations, and session linkages are present.
