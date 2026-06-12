@@ -1,6 +1,11 @@
-# 🗄️ Himalix Unified Database Schema Blueprint
+# 🗄️ Himalix Split Database Schema Blueprint
 
-This document details the complete relational database design for the unified Himalix Labs platform. The schema consolidates authentication, general portfolio CMS components, e-commerce variables, and order ledgers into a single database (`himalix_db`).
+This document details the relational database design for the Himalix Labs platform. Rather than a unified database, it is divided into five distinct sub-module databases to maintain complete segregation of service data:
+1. `himalix_portfolio`: General portfolio CMS components (landing content, services, testimonials, team members, contact messages).
+2. `himalix_store`: E-commerce catalog, user registration (with virtual wallet balance), reviews, orders, and carts.
+3. `himalix_3d`: 3D printing orders database (skeleton).
+4. `himalix_web`: Web development agency projects database (skeleton).
+5. `himalix_project`: Premade/custom projects orders database (skeleton).
 
 ---
 
@@ -430,23 +435,102 @@ Mailing list for automated operational updates.
 
 ---
 
-## 🛠️ Schema Initialization SQL Script
+## 🛠️ Schema Initialization SQL Scripts
 
-Use the script below to initialize the database:
+Use the scripts below to initialize the split databases:
 
+### 1. General Portfolio CMS Database: [portfolio.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/portfolio.sql)
 ```sql
--- ============================================================
--- Himalix Labs Unified Database Schema Script
--- ============================================================
-
-DROP DATABASE IF EXISTS himalix_db;
-CREATE DATABASE himalix_db
+DROP DATABASE IF EXISTS himalix_portfolio;
+CREATE DATABASE himalix_portfolio
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE himalix_db;
+USE himalix_portfolio;
 
--- 1. USERS
+-- Landing page CMS content
+CREATE TABLE landing_content (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    section       VARCHAR(50)  NOT NULL,
+    content_key   VARCHAR(100) NOT NULL,
+    content_value LONGTEXT,
+    content_type  ENUM('text', 'html', 'json') DEFAULT 'text',
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_section_key (section, content_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Services offered by Himalix Labs
+CREATE TABLE services (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    title         VARCHAR(255) NOT NULL,
+    subtitle      VARCHAR(255),
+    description   TEXT,
+    icon_class    VARCHAR(100),
+    features      JSON,
+    link_url      VARCHAR(500),
+    display_order INT DEFAULT 0,
+    is_active     BOOLEAN DEFAULT TRUE,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Team members
+CREATE TABLE team_members (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    name          VARCHAR(255) NOT NULL,
+    role          VARCHAR(100) NOT NULL,
+    bio           TEXT,
+    image_url     VARCHAR(500),
+    social_links  JSON,
+    display_order INT DEFAULT 0,
+    is_active     BOOLEAN DEFAULT TRUE,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Client testimonials
+CREATE TABLE testimonials (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    client_name   VARCHAR(255) NOT NULL,
+    client_title  VARCHAR(255),
+    company       VARCHAR(255),
+    content       TEXT NOT NULL,
+    rating        INT DEFAULT 5,
+    image_url     VARCHAR(500),
+    is_active     BOOLEAN DEFAULT TRUE,
+    display_order INT DEFAULT 0,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Labs-specific site settings
+CREATE TABLE labs_site_settings (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    setting_key    VARCHAR(100) UNIQUE NOT NULL,
+    setting_value  LONGTEXT,
+    setting_type   ENUM('text', 'image', 'json', 'boolean') DEFAULT 'text',
+    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Contact form messages
+CREATE TABLE contact_messages (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    name       VARCHAR(255) NOT NULL,
+    email      VARCHAR(255) NOT NULL,
+    subject    VARCHAR(255),
+    message    TEXT NOT NULL,
+    is_read    BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### 2. Store E-Commerce Database: [store.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/store.sql)
+```sql
+DROP DATABASE IF EXISTS himalix_store;
+CREATE DATABASE himalix_store
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE himalix_store;
+
+-- User registry (Store specific accounts, credentials, and wallet information)
 CREATE TABLE users (
     id              INT           NOT NULL AUTO_INCREMENT,
     email           VARCHAR(255)  NOT NULL,
@@ -465,79 +549,7 @@ CREATE TABLE users (
     CONSTRAINT fk_users_referred_by FOREIGN KEY (referred_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 2. PORTFOLIO CMS CONTENT
-CREATE TABLE landing_content (
-    id            INT AUTO_INCREMENT PRIMARY KEY,
-    section       VARCHAR(50)  NOT NULL,
-    content_key   VARCHAR(100) NOT NULL,
-    content_value LONGTEXT,
-    content_type  ENUM('text', 'html', 'json') DEFAULT 'text',
-    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_section_key (section, content_key)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 3. PORTFOLIO SERVICES
-CREATE TABLE services (
-    id            INT AUTO_INCREMENT PRIMARY KEY,
-    title         VARCHAR(255) NOT NULL,
-    subtitle      VARCHAR(255),
-    description   TEXT,
-    icon_class    VARCHAR(100),
-    features      JSON,
-    link_url      VARCHAR(500),
-    display_order INT DEFAULT 0,
-    is_active     BOOLEAN DEFAULT TRUE,
-    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 4. TEAM MEMBERS
-CREATE TABLE team_members (
-    id            INT AUTO_INCREMENT PRIMARY KEY,
-    name          VARCHAR(255) NOT NULL,
-    role          VARCHAR(100) NOT NULL,
-    bio           TEXT,
-    image_url     VARCHAR(500),
-    social_links  JSON,
-    display_order INT DEFAULT 0,
-    is_active     BOOLEAN DEFAULT TRUE,
-    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 5. TESTIMONIALS
-CREATE TABLE testimonials (
-    id            INT AUTO_INCREMENT PRIMARY KEY,
-    client_name   VARCHAR(255) NOT NULL,
-    client_title  VARCHAR(255),
-    company       VARCHAR(255),
-    content       TEXT NOT NULL,
-    rating        INT DEFAULT 5,
-    image_url     VARCHAR(500),
-    is_active     BOOLEAN DEFAULT TRUE,
-    display_order INT DEFAULT 0,
-    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 6. PORTFOLIO SETTINGS
-CREATE TABLE labs_site_settings (
-    id             INT AUTO_INCREMENT PRIMARY KEY,
-    setting_key    VARCHAR(100) UNIQUE NOT NULL,
-    setting_value  LONGTEXT,
-    setting_type   ENUM('text', 'image', 'json', 'boolean') DEFAULT 'text',
-    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 7. CONTACT MESSAGES
-CREATE TABLE contact_messages (
-    id         INT AUTO_INCREMENT PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    email      VARCHAR(255) NOT NULL,
-    subject    VARCHAR(255),
-    message    TEXT NOT NULL,
-    is_read    BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 8. STORE PRODUCTS
+-- Products catalog
 CREATE TABLE products (
     id               INT           NOT NULL AUTO_INCREMENT,
     name             VARCHAR(255)  NOT NULL,
@@ -557,7 +569,7 @@ CREATE TABLE products (
     UNIQUE KEY uq_products_sku (sku)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 9. SHOPPING CART
+-- Shopping cart items
 CREATE TABLE cart_items (
     id         INT       NOT NULL AUTO_INCREMENT,
     user_id    INT       NOT NULL,
@@ -570,7 +582,7 @@ CREATE TABLE cart_items (
     CONSTRAINT fk_cart_items_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 10. ORDERS
+-- Orders
 CREATE TABLE orders (
     id               INT           NOT NULL AUTO_INCREMENT,
     user_id          INT           DEFAULT NULL,
@@ -585,7 +597,7 @@ CREATE TABLE orders (
     CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 11. ORDER LINE ITEMS
+-- Order line items
 CREATE TABLE order_items (
     id         INT            NOT NULL AUTO_INCREMENT,
     order_id   INT            NOT NULL,
@@ -597,7 +609,7 @@ CREATE TABLE order_items (
     CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 12. PRODUCT REVIEWS
+-- Product reviews
 CREATE TABLE reviews (
     id         INT       NOT NULL AUTO_INCREMENT,
     user_id    INT       NOT NULL,
@@ -610,7 +622,7 @@ CREATE TABLE reviews (
     CONSTRAINT fk_reviews_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 13. WALLET TRANSACTIONS
+-- Wallet transaction ledger
 CREATE TABLE wallet_transactions (
     id           INT            NOT NULL AUTO_INCREMENT,
     user_id      INT            NOT NULL,
@@ -622,7 +634,7 @@ CREATE TABLE wallet_transactions (
     CONSTRAINT fk_wallet_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 14. SOCIAL CLAIMS
+-- Social media follow claims
 CREATE TABLE social_claims (
     user_id    INT         NOT NULL,
     platform   VARCHAR(50) NOT NULL,
@@ -631,14 +643,14 @@ CREATE TABLE social_claims (
     CONSTRAINT fk_social_claims_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 15. SYSTEM SETTINGS
+-- Store configuration settings
 CREATE TABLE settings (
     key_name  VARCHAR(255) NOT NULL,
     key_value TEXT         DEFAULT NULL,
     PRIMARY KEY (key_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 16. NOTIFICATION RECEIVERS
+-- Email notification receivers
 CREATE TABLE email_notification_receivers (
     id                        INT          NOT NULL AUTO_INCREMENT,
     email_address             VARCHAR(255) NOT NULL,
@@ -649,3 +661,28 @@ CREATE TABLE email_notification_receivers (
     UNIQUE KEY uq_receivers_email (email_address)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
+
+### 3. 3D Printing Database: [3d.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/3d.sql)
+```sql
+DROP DATABASE IF EXISTS himalix_3d;
+CREATE DATABASE himalix_3d
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+### 4. Web Custom Agency Database: [web.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/web.sql)
+```sql
+DROP DATABASE IF EXISTS himalix_web;
+CREATE DATABASE himalix_web
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
+### 5. Robotics Projects Database: [project.sql](file:///c:/xampp/htdocs/codes/himalix-labs/database/project.sql)
+```sql
+DROP DATABASE IF EXISTS himalix_project;
+CREATE DATABASE himalix_project
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
+
