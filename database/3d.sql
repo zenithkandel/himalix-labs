@@ -1,0 +1,4 @@
+DROP DATABASE IF EXISTS himalix_3d;
+CREATE DATABASE himalix_3d
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
