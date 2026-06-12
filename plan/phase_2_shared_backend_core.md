@@ -1,6 +1,6 @@
 # ⚙️ Phase 2: Shared Backend Core & Configuration Blueprint
 
-This phase configures the core runtime variables, database pools, Nodemailer services, and secure middleware routines for the Express server backend.
+This phase configures the core runtime variables, multiple database connection pools for split databases, Nodemailer configurations, and auth security middlewares.
 
 ---
 
@@ -41,20 +41,25 @@ Create a [package.json](file:///c:/xampp/htdocs/codes/himalix-labs/backend/packa
 
 ## 2. Server Configuration Variables
 
-Create an environment configuration template named [.env](file:///c:/xampp/htdocs/codes/himalix-labs/backend/.env):
+Create an environment configuration file named [.env](file:///c:/xampp/htdocs/codes/himalix-labs/backend/.env):
 
 ```ini
 # Server Configuration
 PORT=5000
 NODE_ENV=development
 
-# Database Credentials
+# Database Configuration (Multi-Database Settings)
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=
-DB_NAME=himalix_db
 DB_PORT=3306
 DB_CONNECTION_LIMIT=20
+
+DB_PORTFOLIO_NAME=himalix_portfolio
+DB_STORE_NAME=himalix_store
+DB_3D_NAME=himalix_3d
+DB_WEB_NAME=himalix_web
+DB_PROJECT_NAME=himalix_project
 
 # JWT Cryptographic Credentials
 JWT_SECRET=super_cryptographic_and_secure_himalix_labs_jwt_secret_key_2026
@@ -70,38 +75,56 @@ EMAIL_FROM=alerts@himalixlab.com
 
 ---
 
-## 3. Database Pool Connector
+## 3. Database Pool Connectors
 
-Create the database connection pool in [db.js](file:///c:/xampp/htdocs/codes/himalix-labs/backend/config/db.js). It enables dynamic query execution with asynchronous `mysql2/promise` capabilities:
+Create the multi-pool setup in [db.js](file:///c:/xampp/htdocs/codes/himalix-labs/backend/config/db.js). It initializes distinct pools to connect to separate databases on the server:
 
 ```javascript
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'himalix_db',
-  port: process.env.DB_PORT || 3306,
-  connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
-  waitForConnections: true,
-  queueLimit: 0
-});
+const createPool = (dbName) => {
+  return mysql.createPool({
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: dbName,
+    port: parseInt(process.env.DB_PORT) || 3306,
+    connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
+    waitForConnections: true,
+    queueLimit: 0
+  });
+};
 
-// Verify Connection Flow
+const portfolioPool = createPool(process.env.DB_PORTFOLIO_NAME || 'himalix_portfolio');
+const storePool = createPool(process.env.DB_STORE_NAME || 'himalix_store');
+const pool3d = createPool(process.env.DB_3D_NAME || 'himalix_3d');
+const webPool = createPool(process.env.DB_WEB_NAME || 'himalix_web');
+const projectPool = createPool(process.env.DB_PROJECT_NAME || 'himalix_project');
+
+// Validate active pools connectivity
 (async () => {
   try {
-    const conn = await pool.getConnection();
-    console.log('✅ MySQL Pool established successfully with ' + process.env.DB_NAME);
-    conn.release();
+    const conn1 = await portfolioPool.getConnection();
+    console.log('✅ Portfolio DB Connection verified successfully.');
+    conn1.release();
+
+    const conn2 = await storePool.getConnection();
+    console.log('✅ Store DB Connection verified successfully.');
+    conn2.release();
   } catch (err) {
-    console.error('❌ Failed to establish connection with MySQL Database pool:', err.message);
+    console.error('❌ Failed to establish connection with split MySQL pools:', err.message);
     process.exit(1);
   }
 })();
 
-module.exports = pool;
+module.exports = {
+  portfolioPool,
+  storePool,
+  pool3d,
+  webPool,
+  projectPool
+};
 ```
 
 ---
@@ -124,7 +147,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Verify Transport Configuration
+// Verify SMTP Connections
 transporter.verify((error, success) => {
   if (error) {
     console.warn('⚠️ Mail service verification failed. Emails will not send:', error.message);
@@ -161,7 +184,7 @@ module.exports = { transporter, sendMail };
 
 ## 5. Security & Authentication Middlewares
 
-Create the authentication verification functions in [auth.js](file:///c:/xampp/htdocs/codes/himalix-labs/auth/authMiddleware.js) or `backend/middleware/auth.js`:
+Create the authentication checking functions in [authMiddleware.js](file:///c:/xampp/htdocs/codes/himalix-labs/auth/authMiddleware.js) or `backend/middleware/auth.js`:
 
 ```javascript
 const jwt = require('jsonwebtoken');
