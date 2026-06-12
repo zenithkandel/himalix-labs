@@ -1,6 +1,6 @@
 # 🧪 Phase 7: Verification & Testing Blueprint
 
-This phase outlines scripts, manual test suites, and database validation checks to verify structural changes.
+This phase outlines scripts, manual test suites, and database validation checks to verify structural changes across split databases.
 
 ---
 
@@ -32,18 +32,18 @@ npm run dev
 
 ---
 
-## 2. Authentication Verification Plan
+## 2. Authentication Verification Plan (Queries `himalix_store`)
 
 ### Test Suite A: Email/Password Registration & Login
 1. **Validation Checks:** Try registering with an invalid email layout or a short password. Verify that server routing triggers a `400 Bad Request` containing validation error strings.
 2. **Duplication Protection:** Attempt to register a user utilizing an existing email. Verify the server returns a `400` code warning the email is already in use.
-3. **Database Checks:** Run registration successfully. Query the `users` table to verify:
+3. **Database Checks:** Run registration successfully. Query the `himalix_store.users` table to verify:
    * `password_hash` is encrypted using a `bcryptjs` salt.
    * `referral_code` conforms to the prefix layout `HMX-REF-XXXXXX`.
-4. **Referral Reward Checks:** Register a user by providing another user's referral code. Query the `users` table and `wallet_transactions` to verify both accounts received their credit bonuses (`referral_bonus_amount`).
+4. **Referral Reward Checks:** Register a user by providing another user's referral code. Query the `users` table and `wallet_transactions` in the `himalix_store` database to verify both accounts received their credit bonuses.
 
 ### Test Suite B: Google OAuth Login
-1. Ensure `google_auth_enabled` is set to `'1'` in the settings table.
+1. Ensure `google_auth_enabled` is set to `'1'` in the `himalix_store.settings` table.
 2. Simulate Google credentials validation in the auth route using mock ID tokens.
 3. Verify that new users are registered without standard passwords, while existing user profiles are updated with Google IDs.
 
@@ -71,7 +71,7 @@ Run verification checkouts on the storefront page to validate calculation metric
   * Ensure the system config displays: `"Delivery expected in 5 to 6 business days"`.
 
 ### Test Case C: Transaction Security & Stock Rollbacks
-* **Scenario:** Attempt checking out an order containing 5 items where 1 item's stock is below the requested quantity.
+* **Scenario:** Attempt checking out an order containing 5 items where 1 item's stock is below the requested quantity in `himalix_store.products`.
 * **Expected Result:** The checkout API must block the order, return a `400` status code, rollback all inventory reductions, and keep the user's cart intact.
 
 ---

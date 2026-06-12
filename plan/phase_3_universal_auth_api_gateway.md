@@ -1,95 +1,63 @@
 # 🚦 Phase 3: Universal Auth & API Gateway Blueprint
 
-This phase configures the core authentication controllers (local and Google OAuth), maps e-commerce checkout routing (with mathematical calculation models), and builds the Express gateway server [server.js](file:///c:/xampp/htdocs/codes/himalix-labs/backend/server.js).
+This phase configures the core authentication controllers, maps database queries to the split database pools (`portfolioPool` and `storePool`), and mounts the Express gateway server [server.js](file:///c:/xampp/htdocs/codes/himalix-labs/backend/server.js).
 
 ---
 
-## 1. Authentication Routing and Logic
+## 1. Authentication Routing and Logic (Utilizes `storePool`)
 
-Create the authentication controller in [authController.js](file:///c:/xampp/htdocs/codes/himalix-labs/auth/authController.js) or `backend/routes/auth.js`:
+Create the authentication controller in [authController.js](file:///c:/xampp/htdocs/codes/himalix-labs/auth/authController.js) or `backend/routes/auth.js`. All queries run against the **`himalix_store`** database via `storePool`:
 
 ### A. Local Account Registration (`POST /api/auth/register`)
-1. Checks if the requested email already exists in `users`.
+1. Checks if the requested email exists in the `users` table of `himalix_store`.
 2. Hashes the raw password utilizing `bcryptjs` (salt rounds = 10).
 3. Generates a new referral code: `HMX-REF-` + 6 random uppercase alphanumeric characters.
-4. Executes the following actions inside a database transaction:
-   * Inserts the new user.
-   * If a valid `referredByCode` is passed, fetches the matching referrer ID.
-   * If found, sets the new user's initial wallet balance to the setting `referral_bonus_amount` (default `5.00`) and records a `deposit` entry in `wallet_transactions`.
-   * Credits the referrer's wallet balance by the same amount and logs a `referral` transaction entry.
+4. Executes the following actions inside a database transaction on `storePool`:
+   * Inserts the new user record.
+   * If `referredByCode` is passed, fetches the matching referrer ID from the same database.
+   * If found, sets the new user's initial wallet balance to `referral_bonus_amount` (fetched from the settings table) and records a `deposit` entry in `wallet_transactions`.
+   * Credits the referrer's wallet balance and logs a `referral` transaction entry.
 5. Signs a JWT containing `{ id, email, role }`.
-6. Dispatches an email notification to admins subscribed to user registrations.
+6. Dispatches an email notification to admin email receivers in `email_notification_receivers`.
 
 ### B. Local Account Login (`POST /api/auth/login`)
-1. Queries the user by email.
+1. Queries the user by email from `himalix_store.users`.
 2. Compares input password against `password_hash` using `bcryptjs.compare()`.
 3. If valid, signs and returns the JWT.
 
 ### C. Google Sign-In (`POST /api/auth/google`)
-1. Checks settings table to verify `google_auth_enabled === '1'`.
-2. Validates the Google ID credential token using Google's verification client (`google-auth-library`):
-   ```javascript
-   const { OAuth2Client } = require('google-auth-library');
-   const client = new OAuth2Client(googleClientIdFromSettings);
-   const ticket = await client.verifyIdToken({
-       idToken: req.body.token,
-       audience: googleClientIdFromSettings
-   });
-   const payload = ticket.getPayload(); // { email, sub (google_id), picture (avatar_url) }
-   ```
-3. Checks if a user matches the `google_id`. If found, issues a JWT.
-4. If a user matches the `email` but has no `google_id`, links the account by saving `google_id` and updates the profile image path (`avatar_url`).
+1. Checks the settings table in `himalix_store` to verify `google_auth_enabled === '1'`.
+2. Validates the Google ID credential token using Google's verification client (`google-auth-library`).
+3. Queries users by `google_id` in `himalix_store.users`. If exists, issues a JWT.
+4. If a user matches the `email` but has no `google_id`, links the account.
 5. If no user matches the email, inserts a new user with a null `password_hash`, generates a referral code, and issues a JWT.
 
 ### D. Settings Config API (`GET /api/auth/config`)
-Returns public store variables to configuration contexts (Google Client ID, VAT rates, delivery fee parameters, banner strings) by querying the `settings` table.
+Returns public store variables to configuration contexts (Google Client ID, VAT rates, delivery fee parameters) by querying the `himalix_store.settings` table.
 
 ---
 
-## 2. Store E-Commerce Endpoints (`/api/store`)
+## 2. Sub-module API Routing
 
-Create route modules under `backend/routes/store/`:
-* **`products.js`:** List products with paginated category filters (`limit`, `page`), search queries, and sorting.
-* **`cart.js`:** Add items to cart (`uq_cart_items_user_product` constraints trigger update increments if duplicate), change quantities, and delete items.
-* **`wallet.js`:** Fetch transaction logs, bind referral codes post-registration, and claim platform-specific social credits.
-* **`reviews.js`:** Fetch ratings per product ID and submit customer reviews.
+Create route files under `backend/routes/`:
 
-### Detailed Checkout Calculations (`POST /api/store/orders/checkout`)
-The checkout endpoint must execute the following operations in a transaction block:
-1. **Fetch Cart:** Checks user cart items. Fails with `400` if empty.
-2. **Validate Stocks:** Ensures ordered quantity $\le$ current product `stock_quantity` (ignores stock checks if `stock_type === 'outsourced'`).
-3. **Calculate Distance:** Converts input lat/lon and HQ coordinates to radians and executes the Haversine equation:
-   ```javascript
-   const toRad = (deg) => (deg * Math.PI) / 180;
-   const lat1 = toRad(27.7029); // HQ Lat
-   const lon1 = toRad(85.3072); // HQ Lon
-   const [lat2, lon2] = receivingLocation.split(',').map(c => toRad(parseFloat(c)));
-   const dLat = lat2 - lat1;
-   const dLon = lon2 - lon1;
-   const a = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
-   const distanceKm = 2 * 6371 * Math.asin(Math.sqrt(a));
-   ```
-4. **Determine Shipping Fee:**
-   * If order subtotal $\ge$ `delivery_free_threshold`, `shippingFee = 0.00`.
-   * Else: `shippingFee = Math.max(delivery_min_charge, distanceKm * delivery_per_km_rate)`.
-5. **Determine Sales Tax:** `tax = subtotal * (sales_tax_rate / 100)`.
-6. **Total Amount:** `total = subtotal + tax + shippingFee`.
-7. **Deduct Wallet Credits:** If `paymentMethod === 'store_credit'`:
-   * Verifies `wallet_balance >= total`.
-   * Subtracts `total` from `wallet_balance` in `users`.
-   * Creates a transaction record: `type = 'purchase'`, `amount = -total`.
-   * Sets `payment_status = 'paid'`.
-8. **Tracking ID & ETA Generation:**
-   * Tracking ID: `HMX-` + last 6 digits of current timestamp + 4 random uppercase characters.
-   * Maximum processing delay `outsource_days` among all checked items determines Delivery ETA:
-     $$\text{ETA Min} = \max(\text{outsource\_days}) + 1$$
-     $$\text{ETA Max} = \max(\text{outsource\_days}) + 2$$
-9. **Update Database & Send Alerts:**
-   * Creates `orders` and `order_items` entries.
-   * Decrements stock counts for `'in_stock'` items.
-   * Empties user cart items.
-   * Sends transactional email invoices.
-   * If stock falls below `low_stock_threshold`, dispatches low stock alerts to subscribed admins.
+### A. Portfolio Pages CMS: `routes/content.js` (Utilizes `portfolioPool`)
+* **`GET /api/content`:** Retrieves landing page elements from `himalix_portfolio.landing_content`, active listings from `services`, `team_members`, and `testimonials`.
+* **`POST /api/content/contact`:** Captures and stores contact forms in `himalix_portfolio.contact_messages`.
+
+### B. Storefront E-Commerce: `routes/store.js` (Utilizes `storePool`)
+* **`GET /api/store/products`:** Retrieves catalog products from `himalix_store.products`.
+* **`POST /api/store/cart/add`:** Manages user shopping items in `himalix_store.cart_items`.
+* **`GET /api/store/wallet/history`:** Displays users transaction ledgers from `himalix_store.wallet_transactions`.
+
+### C. Checkout API Desk (Utilizes `storePool` transaction block)
+The checkout endpoint `POST /api/store/orders/checkout` executes the following sequence against `storePool`:
+1. **Fetch Cart:** Checks user cart items in `himalix_store.cart_items`.
+2. **Validate Stocks:** Ensures ordered quantity $\le$ product `stock_quantity` in `himalix_store.products` (unless `'outsourced'`).
+3. **Calculate Distance & Shipping Fee:** Uses the Haversine formula based on user location coordinates compared to the HQ coordinates (`27.7029, 85.3072`).
+4. **Deduct Wallet Credits:** If `paymentMethod === 'store_credit'`, verifies `wallet_balance >= total` and updates user table balance and transactions.
+5. **Tracking & ETA:** Generates a random tracking code and calculates the ETA based on `max(outsource_days)`.
+6. **Apply Transaction:** Inserts records in `himalix_store.orders` and `order_items`, updates stock counts, and empties user cart.
 
 ---
 
@@ -128,8 +96,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Rate Limiting Protection
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 Minutes
-  max: 100, // Limit each IP to 100 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: { error: 'Too many requests. Please try again later.' }
 });
 app.use('/api/', apiLimiter);
