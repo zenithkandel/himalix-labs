@@ -1,0 +1,41 @@
+:root {
+  /* Premium Typefaces */
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-serif: 'Playfair Display', serif;
+
+  /* Accent Refined Gold Highlights */
+  --accent-gold: #d4a017;
+  --accent-gold-hover: #b8960c;
+  
+  /* Layout Transitions */
+  --transition-speed: 0.15s;
+}
+
+/* Default Muted Charcoal Dark Mode Theme */
+[data-theme="dark"], :root:not([data-theme="light"]) {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #121212;
+  --bg-tertiary: #181818;
+  --text-primary: #f5f5f5;
+  --text-secondary: #a3a3a3;
+  --border-color: #262626;
+  --input-bg: #121212;
+  --shadow-color: rgba(0, 0, 0, 0.8);
+  --btn-secondary-bg: #181818;
+  --btn-secondary-hover: #262626;
+}
+
+/* Premium Light Mode (Paper White & Cool Grey) Theme */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #171717;
+  --text-secondary: #525252;
+  --border-color: #dee2e6;
+  --input-bg: #ffffff;
+  --shadow-color: rgba(0, 0, 0, 0.05);
+  --btn-secondary-bg: #e9ecef;
+  --btn-secondary-hover: #dee2e6;
+}
