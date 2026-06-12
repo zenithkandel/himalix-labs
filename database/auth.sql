@@ -1,0 +1,59 @@
+DROP DATABASE IF EXISTS himalix_auth;
+CREATE DATABASE himalix_auth
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE himalix_auth;
+
+-- ============================================================
+-- 1. USER ACCOUNT REGISTRY
+-- ============================================================
+CREATE TABLE users (
+    id              INT           NOT NULL AUTO_INCREMENT,
+    email           VARCHAR(255)  NOT NULL,
+    password_hash   VARCHAR(255)  DEFAULT NULL,
+    google_id       VARCHAR(255)  DEFAULT NULL,
+    avatar_url      VARCHAR(500)  DEFAULT NULL,
+    role            ENUM('user','admin') NOT NULL DEFAULT 'user',
+    wallet_balance  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    referral_code   VARCHAR(50)   DEFAULT NULL,
+    referred_by     INT           DEFAULT NULL,
+    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_users_email (email),
+    UNIQUE KEY uq_users_google_id (google_id),
+    UNIQUE KEY uq_users_referral_code (referral_code),
+    CONSTRAINT fk_users_referred_by FOREIGN KEY (referred_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 2. WALLET LEDGER TRANSACTIONS
+-- ============================================================
+CREATE TABLE wallet_transactions (
+    id           INT            NOT NULL AUTO_INCREMENT,
+    user_id      INT            NOT NULL,
+    amount       DECIMAL(10,2)  NOT NULL,
+    type         ENUM('deposit', 'purchase', 'refund', 'referral', 'social') NOT NULL,
+    reference_id VARCHAR(100)   DEFAULT NULL,
+    created_at   TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_wallet_transactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 3. SOCIAL MEDIA INCENTIVE CLAIMS
+-- ============================================================
+CREATE TABLE social_claims (
+    user_id    INT         NOT NULL,
+    platform   VARCHAR(50) NOT NULL,
+    claimed_at TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, platform),
+    CONSTRAINT fk_social_claims_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- SEED DEFAULT SUPER ADMIN
+-- ============================================================
+-- Hashed password is 'admin123' generated with bcryptjs (salt rounds = 10)
+INSERT INTO users (email, password_hash, role, referral_code, wallet_balance) VALUES
+('admin@himalix.com', '$2a$10$nF4N.20dM8/bLz60kQ8wUeD7b6/2R3/WJgGvK5KCePz5aG5DqK2yK', 'admin', 'HMX-REF-ADMIN1', 0.00);
